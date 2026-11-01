@@ -2,12 +2,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Import authentication router
+from app.api.routes.auth import router as auth_router
+
+
 app = FastAPI(
     title="OpenForge API",
     description="API for the OpenForge Open-Source Application Marketplace",
     version="1.0.0",
 )
 
+
+# Frontend-backend communication
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -17,6 +23,11 @@ app.add_middleware(
 )
 
 
+# Register authentication routes
+app.include_router(auth_router)
+
+
+# Root endpoint
 @app.get("/")
 def root():
     return {
@@ -25,6 +36,7 @@ def root():
     }
 
 
+# Health check endpoint
 @app.get("/api/health")
 def health_check():
     return {
@@ -34,6 +46,7 @@ def health_check():
     }
 
 
+# API information endpoint
 @app.get("/api")
 def api_information():
     return {

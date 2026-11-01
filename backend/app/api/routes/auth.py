@@ -1,0 +1,135 @@
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+
+from app.database.connection import get_db
+from app.models.user import User
+from app.schemas.user import UserRegister, UserResponse, UserLogin
+
+from app.core.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+)
+
+from app.core.dependencies import get_current_user
+
+
+router = APIRouter(
+    prefix="/auth",
+    tags=["Authentication"],
+)
+
+
+# --------------------------------------------------
+# USER REGISTRATION
+# --------------------------------------------------
+
+@router.post(
+    "/register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def register_user(
+    user_data: UserRegister,
+    db: Session = Depends(get_db),
+):
+    email = str(user_data.email).lower()
+
+    existing_user = (
+        db.query(User)
+        .filter(User.email == email)
+        .first()
+    )
+
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists.",
+        )
+
+    new_user = User(
+        full_name=user_data.full_name.strip(),
+        email=email,
+        hashed_password=hash_password(user_data.password),
+        role="developer",
+        is_active=True,
+    )
+
+    db.add(new_user)
+
+    try:
+        db.commit()
+        db.refresh(new_user)
+
+    except IntegrityError:
+        db.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists.",
+        )
+
+    return new_user
+
+
+# --------------------------------------------------
+# USER LOGIN
+# --------------------------------------------------
+
+@router.post("/login")
+def login_user(
+    login_data: UserLogin,
+    db: Session = Depends(get_db),
+):
+    email = str(login_data.email).lower()
+
+    user = (
+        db.query(User)
+        .filter(User.email == email)
+        .first()
+    )
+
+    if not user or not verify_password(
+        login_data.password,
+        user.hashed_password,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account is inactive.",
+        )
+
+    access_token = create_access_token(user.id)
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "full_name": user.full_name,
+            "email": user.email,
+            "role": user.role,
+        },
+    }
+
+
+# --------------------------------------------------
+# GET CURRENT AUTHENTICATED USER
+# --------------------------------------------------
+
+@router.get(
+    "/me",
+    response_model=UserResponse,
+)
+def get_my_profile(
+    current_user: User = Depends(get_current_user),
+):
+    return current_user

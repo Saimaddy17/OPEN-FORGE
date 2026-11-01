@@ -5,6 +5,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.database.connection import Base, settings
+from app.models import User, Category, Application, Submission
 
 # Import models here so Alembic can detect them
 # We will add model imports as we create them.
