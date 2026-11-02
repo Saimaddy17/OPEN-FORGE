@@ -1,7 +1,7 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.connection import Base
@@ -9,6 +9,12 @@ from app.database.connection import Base
 
 class Submission(Base):
     __tablename__ = "submissions"
+    __table_args__ = (
+        CheckConstraint(
+            "project_type IN ('source', 'installer')",
+            name="ck_submissions_project_type",
+        ),
+    )
 
     # Primary key
     id: Mapped[int] = mapped_column(
@@ -53,9 +59,9 @@ class Submission(Base):
         index=True,
     )
 
-    repository_url: Mapped[str] = mapped_column(
+    repository_url: Mapped[str | None] = mapped_column(
         String(500),
-        nullable=False,
+        nullable=True,
     )
 
     official_website: Mapped[str | None] = mapped_column(
@@ -68,8 +74,15 @@ class Submission(Base):
         nullable=True,
     )
 
-    license: Mapped[str] = mapped_column(
+    license: Mapped[str | None] = mapped_column(
         String(100),
+        nullable=True,
+    )
+
+    project_type: Mapped[str] = mapped_column(
+        String(20),
+        default="source",
+        server_default="source",
         nullable=False,
     )
 

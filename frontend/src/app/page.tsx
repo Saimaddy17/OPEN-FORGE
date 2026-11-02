@@ -1,11 +1,12 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import {
   Search,
   GitBranch,
-  Star,
   ArrowUpRight,
   Sparkles,
   Code2,
@@ -17,7 +18,6 @@ import {
   Heart,
   Menu,
   X,
-  ChevronDown,
   SlidersHorizontal,
   ExternalLink,
   Globe,
@@ -25,18 +25,23 @@ import {
   Rocket,
 } from "lucide-react";
 
-type Project = {
+type Application = {
   id: number;
   name: string;
-  category: string;
+  slug: string;
+  short_description: string;
   description: string;
-  language: string;
-  stars: number;
-  license: string;
-  GitBranch: string;
-  icon: string;
-  color: string;
-  featured: boolean;
+  category_id: number;
+  category_name: string;
+  repository_url: string | null;
+  official_website: string | null;
+  download_url: string | null;
+  license: string | null;
+  project_type: "source" | "installer";
+  version: string | null;
+  logo_url: string | null;
+  developer_id: number;
+  created_at: string;
 };
 
 const categories = [
@@ -49,155 +54,143 @@ const categories = [
   { name: "Design", icon: Palette },
 ];
 
-const projects: Project[] = [
-  {
-    id: 1,
-    name: "Nextcloud",
-    category: "Productivity",
-    description: "A self-hosted productivity platform for files, collaboration and communication.",
-    language: "PHP",
-    stars: 28500,
-    license: "AGPL-3.0",
-    GitBranch: "https://GitBranch.com/nextcloud/server",
-    icon: "☁️",
-    color: "from-blue-500/20 to-cyan-500/10",
-    featured: true,
-  },
-  {
-    id: 2,
-    name: "Appwrite",
-    category: "Developer Tools",
-    description: "Open-source backend platform for building web and mobile applications.",
-    language: "TypeScript",
-    stars: 48200,
-    license: "BSD-3-Clause",
-    GitBranch: "https://GitBranch.com/appwrite/appwrite",
-    icon: "⚡",
-    color: "from-pink-500/20 to-purple-500/10",
-    featured: true,
-  },
-  {
-    id: 3,
-    name: "Ollama",
-    category: "AI & Machine Learning",
-    description: "Run and manage large language models locally on your machine.",
-    language: "Go",
-    stars: 155000,
-    license: "MIT",
-    GitBranch: "https://GitBranch.com/ollama/ollama",
-    icon: "🦙",
-    color: "from-orange-500/20 to-yellow-500/10",
-    featured: true,
-  },
-  {
-    id: 4,
-    name: "Penpot",
-    category: "Design",
-    description: "An open-source design and prototyping platform for collaborative teams.",
-    language: "Clojure",
-    stars: 40100,
-    license: "MPL-2.0",
-    GitBranch: "https://GitBranch.com/penpot/penpot",
-    icon: "🎨",
-    color: "from-purple-500/20 to-pink-500/10",
-    featured: true,
-  },
-  {
-    id: 5,
-    name: "Coolify",
-    category: "Developer Tools",
-    description: "A self-hostable platform for deploying applications and databases.",
-    language: "PHP",
-    stars: 47600,
-    license: "Apache-2.0",
-    GitBranch: "https://GitBranch.com/coollabsio/coolify",
-    icon: "🚀",
-    color: "from-emerald-500/20 to-green-500/10",
-    featured: false,
-  },
-  {
-    id: 6,
-    name: "Metabase",
-    category: "Databases",
-    description: "Open-source business intelligence and data visualization platform.",
-    language: "Clojure",
-    stars: 43800,
-    license: "AGPL-3.0",
-    GitBranch: "https://GitBranch.com/metabase/metabase",
-    icon: "📊",
-    color: "from-yellow-500/20 to-orange-500/10",
-    featured: false,
-  },
-  {
-    id: 7,
-    name: "Penpot",
-    category: "Design",
-    description: "Design interfaces and prototypes with an open-source collaborative tool.",
-    language: "Clojure",
-    stars: 40100,
-    license: "MPL-2.0",
-    GitBranch: "https://GitBranch.com/penpot/penpot",
-    icon: "🖌️",
-    color: "from-fuchsia-500/20 to-violet-500/10",
-    featured: false,
-  },
-  {
-    id: 8,
-    name: "Vault",
-    category: "Security",
-    description: "Manage secrets, protect sensitive data and control access securely.",
-    language: "Go",
-    stars: 33000,
-    license: "BUSL-1.1",
-    GitBranch: "https://GitBranch.com/hashicorp/vault",
-    icon: "🔐",
-    color: "from-amber-500/20 to-orange-500/10",
-    featured: false,
-  },
-  {
-    id: 9,
-    name: "Jellyfin",
-    category: "Productivity",
-    description: "A free software media system for managing and streaming your media.",
-    language: "C#",
-    stars: 43000,
-    license: "GPL-3.0",
-    GitBranch: "https://GitBranch.com/jellyfin/jellyfin",
-    icon: "🎬",
-    color: "from-red-500/20 to-pink-500/10",
-    featured: false,
-  },
-];
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "");
 
-const formatStars = (value: number) =>
-  value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value);
+function isApplication(value: unknown): value is Application {
+  if (typeof value !== "object" || value === null) return false;
+
+  const application = value as Record<string, unknown>;
+  return (
+    typeof application.id === "number" &&
+    typeof application.name === "string" &&
+    typeof application.slug === "string" &&
+    typeof application.short_description === "string" &&
+    typeof application.description === "string" &&
+    typeof application.category_id === "number" &&
+    typeof application.category_name === "string" &&
+    (typeof application.repository_url === "string" ||
+      application.repository_url === null) &&
+    (typeof application.official_website === "string" ||
+      application.official_website === null) &&
+    (typeof application.download_url === "string" ||
+      application.download_url === null) &&
+    (typeof application.license === "string" || application.license === null) &&
+    (application.project_type === "source" ||
+      application.project_type === "installer") &&
+    (typeof application.version === "string" || application.version === null) &&
+    (typeof application.logo_url === "string" || application.logo_url === null) &&
+    typeof application.developer_id === "number" &&
+    typeof application.created_at === "string" &&
+    !Number.isNaN(Date.parse(application.created_at))
+  );
+}
+
+const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 
 export default function Home() {
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All Applications");
-  const [sort, setSort] = useState("popular");
+  const [sort, setSort] = useState("recent");
   const [mobileMenu, setMobileMenu] = useState(false);
   const [favorites, setFavorites] = useState<number[]>([]);
+  const [failedLogos, setFailedLogos] = useState<number[]>([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    if (!apiBaseUrl) {
+      return () => controller.abort();
+    }
+
+    fetch(`${apiBaseUrl}/api/applications`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`The marketplace request failed (${response.status}).`);
+        }
+
+        const data: unknown = await response.json();
+        if (!Array.isArray(data) || !data.every(isApplication)) {
+          throw new Error("The marketplace returned an invalid response.");
+        }
+        return data;
+      })
+      .then((data: Application[]) => {
+        setApplications(data);
+        setFailedLogos([]);
+        setError(null);
+      })
+      .catch((requestError: unknown) => {
+        if (requestError instanceof Error && requestError.name === "AbortError") {
+          return;
+        }
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unable to load marketplace applications."
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [retryCount]);
+
+  const availableCategories = useMemo(() => {
+    const categoryNames = [...new Set(applications.map((app) => app.category_name))];
+    return [
+      categories[0],
+      ...categoryNames.map((name) => ({
+        name,
+        icon: categories.find((item) => item.name === name)?.icon ?? Layers,
+      })),
+    ];
+  }, [applications]);
+
+  const recentlyAdded = useMemo(
+    () =>
+      [...applications]
+        .sort(
+          (a, b) =>
+            Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id
+        )
+        .slice(0, 3),
+    [applications]
+  );
 
   const filteredProjects = useMemo(() => {
-    let result = projects.filter((project) => {
+    let result = applications.filter((project) => {
       const term = search.toLowerCase();
 
       const matchesSearch =
         project.name.toLowerCase().includes(term) ||
         project.description.toLowerCase().includes(term) ||
-        project.language.toLowerCase().includes(term) ||
-        project.category.toLowerCase().includes(term);
+        project.short_description.toLowerCase().includes(term) ||
+        project.category_name.toLowerCase().includes(term);
 
       const matchesCategory =
         category === "All Applications" ||
-        project.category === category;
+        project.category_name === category;
 
       return matchesSearch && matchesCategory;
     });
 
-    if (sort === "popular") {
-      result = [...result].sort((a, b) => b.stars - a.stars);
+    if (sort === "recent") {
+      result = [...result].sort(
+        (a, b) =>
+          Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id
+      );
     } else if (sort === "name") {
       result = [...result].sort((a, b) =>
         a.name.localeCompare(b.name)
@@ -205,7 +198,7 @@ export default function Home() {
     }
 
     return result;
-  }, [search, category, sort]);
+  }, [applications, search, category, sort]);
 
   const toggleFavorite = (id: number) => {
     setFavorites((previous) =>
@@ -214,35 +207,39 @@ export default function Home() {
         : [...previous, id]
     );
   };
+  const requestError = apiBaseUrl
+    ? error
+    : "The marketplace API URL is not configured.";
+  const isLoading = apiBaseUrl ? loading : false;
 
   return (
     <main className="min-h-screen bg-[#090b0a] text-white">
       {/* NAVIGATION */}
       <header className="sticky top-0 z-50 border-b border-white/[0.08] bg-[#090b0a]/90 backdrop-blur-xl">
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
-          <a href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400 text-black">
               <Code2 size={23} />
             </div>
             <span className="text-xl font-black tracking-tight">
               OPEN<span className="text-emerald-400">FORGE</span>
             </span>
-          </a>
+          </Link>
 
           <div className="hidden items-center gap-8 text-sm text-zinc-400 md:flex">
             <a href="#explore" className="transition hover:text-emerald-400">Explore</a>
             <a href="#categories" className="transition hover:text-emerald-400">Categories</a>
-            <a href="#featured" className="transition hover:text-emerald-400">Featured</a>
+            <a href="#featured" className="transition hover:text-emerald-400">Recently added</a>
             <a href="#publish" className="transition hover:text-emerald-400">Publish</a>
           </div>
 
           <div className="hidden items-center gap-3 sm:flex">
-            <button className="rounded-lg px-4 py-2 text-sm text-zinc-300 hover:text-white">
+            <Link href="/login" className="rounded-lg px-4 py-2 text-sm text-zinc-300 hover:text-white">
               Sign in
-            </button>
-            <button className="rounded-lg bg-emerald-400 px-5 py-2.5 text-sm font-bold text-black transition hover:bg-emerald-300">
+            </Link>
+            <Link href="/register" className="rounded-lg bg-emerald-400 px-5 py-2.5 text-sm font-bold text-black transition hover:bg-emerald-300">
               Get started
-            </button>
+            </Link>
           </div>
 
           <button
@@ -266,6 +263,20 @@ export default function Home() {
                 {item}
               </a>
             ))}
+            <Link
+              href="/login"
+              onClick={() => setMobileMenu(false)}
+              className="block py-3 text-sm text-zinc-300"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/register"
+              onClick={() => setMobileMenu(false)}
+              className="block py-3 text-sm text-zinc-300"
+            >
+              Get started
+            </Link>
           </div>
         )}
       </header>
@@ -340,7 +351,7 @@ export default function Home() {
         </div>
 
         <div className="flex gap-3 overflow-x-auto pb-3">
-          {categories.map((item) => {
+          {availableCategories.map((item) => {
             const Icon = item.icon;
             const active = category === item.name;
 
@@ -371,10 +382,10 @@ export default function Home() {
       <section id="featured" className="mx-auto max-w-7xl px-5 py-10 lg:px-8">
         <div className="mb-8 flex items-end justify-between gap-4">
           <div>
-            <p className="mb-2 text-xs font-bold tracking-widest text-emerald-400">HANDPICKED PROJECTS</p>
-            <h2 className="text-3xl font-bold">Featured applications</h2>
+            <p className="mb-2 text-xs font-bold tracking-widest text-emerald-400">JUST PUBLISHED</p>
+            <h2 className="text-3xl font-bold">Recently added</h2>
             <p className="mt-2 text-sm text-zinc-500">
-              Interesting open-source projects worth exploring.
+              The latest open-source applications added to the marketplace.
             </p>
           </div>
           <a href="#explore" className="hidden text-sm text-emerald-400 hover:text-emerald-300 sm:block">
@@ -383,26 +394,73 @@ export default function Home() {
         </div>
 
         <div className="grid gap-5 md:grid-cols-3">
-          {projects.filter((project) => project.featured).map((project) => (
+          {recentlyAdded.map((application) => (
             <article
-              key={project.id}
+              key={application.id}
               className="group rounded-2xl border border-white/10 bg-white/[0.025] p-6 transition hover:-translate-y-1 hover:border-emerald-400/40"
             >
-              <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${project.color} text-3xl`}>
-                {project.icon}
+              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-400/20 to-green-500/10 text-emerald-300">
+                {application.logo_url && !failedLogos.includes(application.id) ? (
+                  <Image
+                    src={application.logo_url}
+                    alt={`${application.name} logo`}
+                    width={56}
+                    height={56}
+                    unoptimized
+                    onError={() =>
+                      setFailedLogos((previous) =>
+                        previous.includes(application.id)
+                          ? previous
+                          : [...previous, application.id]
+                      )
+                    }
+                    className="h-full w-full object-contain p-2"
+                  />
+                ) : (
+                  <Code2 size={26} />
+                )}
               </div>
-              <p className="mt-5 text-xs text-emerald-400">{project.category}</p>
-              <h3 className="mt-2 text-xl font-bold">{project.name}</h3>
-              <p className="mt-3 min-h-[60px] text-sm leading-6 text-zinc-400">{project.description}</p>
+              <p className="mt-5 text-xs text-emerald-400">{application.category_name}</p>
+              <h3 className="mt-2 text-xl font-bold">{application.name}</h3>
+              <p className="mt-3 min-h-[60px] text-sm leading-6 text-zinc-400">{application.short_description}</p>
               <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-4 text-xs text-zinc-500">
-                <span>{project.language}</span>
-                <span className="flex items-center gap-1"><Star size={13} /> {formatStars(project.stars)}</span>
+                <span>
+                  {application.version
+                    ? `Version ${application.version}`
+                    : application.license ?? "Open source"}
+                </span>
+                <span>{formatDate(application.created_at)}</span>
               </div>
-              <a href={project.GitBranch} target="_blank" rel="noreferrer" className="mt-5 flex items-center justify-center gap-2 rounded-lg border border-white/10 py-3 text-sm transition hover:border-emerald-400 hover:text-emerald-300">
-                View repository <ArrowUpRight size={16} />
-              </a>
+              {(application.repository_url ||
+                application.download_url ||
+                application.official_website) && (
+                <a
+                  href={
+                    application.repository_url ??
+                    application.download_url ??
+                    application.official_website ??
+                    undefined
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-5 flex items-center justify-center gap-2 rounded-lg border border-white/10 py-3 text-sm transition hover:border-emerald-400 hover:text-emerald-300"
+                >
+                  {application.repository_url
+                    ? "View repository"
+                    : application.download_url
+                      ? "Download application"
+                      : "Official website"}{" "}
+                  <ArrowUpRight size={16} />
+                </a>
+              )}
             </article>
           ))}
+          {isLoading && (
+            <p className="text-sm text-zinc-500">Loading recently added applications…</p>
+          )}
+          {requestError && (
+            <p className="text-sm text-zinc-500">Recently added applications are unavailable.</p>
+          )}
         </div>
       </section>
 
@@ -419,7 +477,7 @@ export default function Home() {
 
           <div className="flex items-center gap-3">
             <span className="text-xs text-zinc-500">
-              {filteredProjects.length} results
+              {isLoading ? "Loading…" : `${filteredProjects.length} results`}
             </span>
             <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3">
               <SlidersHorizontal size={15} className="text-zinc-500" />
@@ -429,7 +487,7 @@ export default function Home() {
                 className="bg-transparent py-3 text-sm text-zinc-300 outline-none"
                 aria-label="Sort applications"
               >
-                <option value="popular" className="bg-[#111]">Most popular</option>
+                <option value="recent" className="bg-[#111]">Recently added</option>
                 <option value="name" className="bg-[#111]">Name A–Z</option>
               </select>
             </div>
@@ -458,63 +516,135 @@ export default function Home() {
           )}
         </div>
 
+        {requestError && (
+          <div className="mb-7 rounded-2xl border border-red-400/20 bg-red-400/[0.05] p-6 text-center" role="alert">
+            <p className="text-sm text-zinc-300">{requestError}</p>
+            <button
+              onClick={() => {
+                setLoading(true);
+                setError(null);
+                setRetryCount((count) => count + 1);
+              }}
+              className="mt-4 rounded-lg bg-emerald-400 px-5 py-2.5 text-sm font-bold text-black transition hover:bg-emerald-300"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {isLoading && !requestError && (
+          <div className="rounded-2xl border border-white/10 py-20 text-center" role="status">
+            <p className="text-sm text-zinc-400">Loading marketplace applications…</p>
+          </div>
+        )}
+
+        {!isLoading && !requestError && (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredProjects.map((project) => (
+          {filteredProjects.map((application) => (
             <article
-              key={project.id}
+              key={application.id}
               className="group rounded-2xl border border-white/[0.09] bg-[#101311] p-6 transition duration-300 hover:-translate-y-1 hover:border-emerald-400/40 hover:bg-[#131a15]"
             >
               <div className="flex items-start justify-between">
-                <div className={`flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br ${project.color} text-3xl`}>
-                  {project.icon}
+                <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-emerald-400/20 to-green-500/10 text-emerald-300">
+                  {application.logo_url && !failedLogos.includes(application.id) ? (
+                    <Image
+                      src={application.logo_url}
+                      alt={`${application.name} logo`}
+                      width={56}
+                      height={56}
+                      unoptimized
+                      onError={() =>
+                        setFailedLogos((previous) =>
+                          previous.includes(application.id)
+                            ? previous
+                            : [...previous, application.id]
+                        )
+                      }
+                      className="h-full w-full object-contain p-2"
+                    />
+                  ) : (
+                    <Code2 size={24} />
+                  )}
                 </div>
 
                 <button
-                  onClick={() => toggleFavorite(project.id)}
-                  aria-label={favorites.includes(project.id) ? "Remove favorite" : "Add favorite"}
+                  onClick={() => toggleFavorite(application.id)}
+                  aria-label={favorites.includes(application.id) ? "Remove favorite" : "Add favorite"}
                   className="rounded-lg border border-white/10 p-2 text-zinc-500 transition hover:text-pink-400"
                 >
                   <Heart
                     size={17}
-                    fill={favorites.includes(project.id) ? "currentColor" : "none"}
-                    className={favorites.includes(project.id) ? "text-pink-400" : ""}
+                    fill={favorites.includes(application.id) ? "currentColor" : "none"}
+                    className={favorites.includes(application.id) ? "text-pink-400" : ""}
                   />
                 </button>
               </div>
 
               <div className="mt-6">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-emerald-400">{project.category}</p>
-                  <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-zinc-400">
-                    {project.license}
-                  </span>
+                  <p className="text-xs text-emerald-400">{application.category_name}</p>
+                  {application.license && (
+                    <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-zinc-400">
+                      {application.license}
+                    </span>
+                  )}
                 </div>
 
                 <h3 className="mt-3 text-xl font-bold transition group-hover:text-emerald-300">
-                  {project.name}
+                  {application.name}
                 </h3>
 
                 <p className="mt-3 min-h-[65px] text-sm leading-6 text-zinc-400">
-                  {project.description}
+                  {application.short_description}
                 </p>
               </div>
 
               <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4 text-xs text-zinc-500">
-                <span className="flex items-center gap-2"><Code2 size={14} /> {project.language}</span>
-                <span className="flex items-center gap-1"><Star size={14} /> {formatStars(project.stars)}</span>
+                <span>
+                  {application.version
+                    ? `Version ${application.version}`
+                    : application.project_type === "source"
+                      ? "Open source"
+                      : "Installer"}
+                </span>
+                <span>Added {formatDate(application.created_at)}</span>
               </div>
 
-              <a
-                href={project.GitBranch}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 py-3 text-sm font-medium transition hover:border-emerald-400 hover:text-emerald-300"
-              >
-                <GitBranch size={16} /> View source code <ExternalLink size={13} />
-              </a>
+              <div className="mt-5 flex flex-col gap-2">
+                {application.repository_url && (
+                  <a
+                    href={application.repository_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 py-3 text-sm font-medium transition hover:border-emerald-400 hover:text-emerald-300"
+                  >
+                    <GitBranch size={16} /> View source code <ExternalLink size={13} />
+                  </a>
+                )}
+                {application.download_url && (
+                  <a
+                    href={application.download_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 py-3 text-sm font-medium transition hover:border-emerald-400 hover:text-emerald-300"
+                  >
+                    Download <ArrowUpRight size={15} />
+                  </a>
+                )}
+                {application.official_website && (
+                  <a
+                    href={application.official_website}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-center text-xs text-zinc-500 transition hover:text-emerald-300"
+                  >
+                    Official website
+                  </a>
+                )}
+              </div>
             </article>
           ))}
-        </div>
 
         {filteredProjects.length === 0 && (
           <div className="rounded-2xl border border-dashed border-white/10 py-20 text-center">
@@ -534,6 +664,8 @@ export default function Home() {
             </button>
           </div>
         )}
+        </div>
+        )}
       </section>
 
       {/* PUBLISH CTA */}
@@ -552,12 +684,10 @@ export default function Home() {
               Help developers discover tools that make a difference.
             </p>
             <a
-              href="https://GitBranch.com/"
-              target="_blank"
-              rel="noreferrer"
+              href="/dashboard"
               className="mt-8 inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-7 py-3.5 text-sm font-bold text-black transition hover:bg-emerald-300"
             >
-              Explore GitBranch <ArrowUpRight size={17} />
+              Publish a project <ArrowUpRight size={17} />
             </a>
           </div>
         </div>

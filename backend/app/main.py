@@ -4,6 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Import authentication router
 from app.api.routes.auth import router as auth_router
+from app.api.routes.admin import router as admin_router
+from app.api.routes.applications import router as applications_router
+from app.api.routes.categories import router as categories_router
+from app.api.routes.submissions import router as submissions_router
 
 
 app = FastAPI(
@@ -25,6 +29,10 @@ app.add_middleware(
 
 # Register authentication routes
 app.include_router(auth_router)
+app.include_router(admin_router)
+app.include_router(applications_router)
+app.include_router(categories_router)
+app.include_router(submissions_router)
 
 
 # Root endpoint

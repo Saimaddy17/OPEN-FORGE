@@ -1,4 +1,7 @@
 
+from collections.abc import Callable
+from typing import Literal
+
 import jwt
 
 from fastapi import Depends, HTTPException, status
@@ -59,3 +62,21 @@ def get_current_user(
         )
 
     return user
+
+
+def require_role(role: Literal["developer", "admin"]) -> Callable[..., User]:
+    """Require the authenticated database user to have the specified role."""
+
+    def role_checker(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role != role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This operation requires the {role} role.",
+            )
+        return current_user
+
+    return role_checker
+
+
+get_current_developer = require_role("developer")
+get_current_admin = require_role("admin")
